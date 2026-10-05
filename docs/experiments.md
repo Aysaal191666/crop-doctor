@@ -91,3 +91,26 @@ Observations:
 | 3 | EfficientNet-B0 | flips + rotation + colour | 0.773 | 0.752 | 31/267 |
 
 Note: runs were compared on the test set here. From now on, compare on validation and use the test set only for the final result.
+
+
+
+## Error analysis and confidence thresholds (Run 3 model)
+- Model: Run 3 (EfficientNet-B0 + rotation and colour augmentation)
+- Rule: the app answers only if confidence passes a threshold; a higher bar for "Healthy" than for a disease name. Otherwise it asks for a retake.
+- Thresholds were chosen on the validation set (grid search, minimum 70% of photos answered, then fewest diseased-called-Healthy). The test set was checked once.
+- Chosen: disease >= 0.4, healthy >= 0.6
+
+| | Validation | Test |
+|---|---|---|
+| Photos answered | 83% | 82% |
+| Accuracy on answered photos | 0.781 | 0.794 |
+| Diseased called Healthy | 20/267 (7.5%) | 11/267 (4.1%) |
+
+Test without thresholds: 100% answered, accuracy 0.773, diseased called Healthy 31/267 (11.6%).
+
+Findings:
+- The diseased-called-Healthy count depends only on the Healthy threshold; the disease threshold only trades coverage against accuracy
+- The test result (4.1%) is better than validation (7.5%) for the same rule; with 11 cases the 95% range is roughly 2% to 7%, so the 5% target is not confirmed
+- The 70% coverage minimum was a product choice: (disease 0.4, healthy 0.7) answered 69% on validation with 8/267 missed (3.0%), and was excluded by 1 point
+- In 12 sampled mistakes, 6 were diseased called Healthy; 4 had confidence under 60% (would be sent to retake), 2 (64% and 73%) would pass the threshold
+- All thresholds were tuned on lab-style photos; field-photo behaviour is not yet measured (cross-source evaluation is next)
