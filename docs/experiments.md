@@ -36,3 +36,58 @@ Observations:
 - Train accuracy 0.90 vs validation 0.75: overfitting after about epoch 5
 - Diseased-called-Healthy rate (16.9%) is far above the 5% target
 - Test set has 480 images, so differences of a few points are within noise
+
+
+
+## Run 2: EfficientNet-B0 (model swap only)
+- Same settings as Run 1 except the model: EfficientNet-B0, 224 px, flips only, 10 epochs
+- Best validation accuracy: 0.777
+
+| Metric (test) | Value |
+|---|---|
+| Accuracy | 0.758 |
+| Macro F1 | 0.731 |
+| Diseased called Healthy | 44 / 267 (16.5%) |
+
+Confusion matrix (rows = true, columns = predicted: Brown Spot, Healthy, Hispa, Leaf Blast):
+
+    [[ 60   8   3   4]
+     [ 14 176  17   6]
+     [  0  28  44   8]
+     [ 12   8   8  84]]
+
+Observations:
+- Swapping the model gave only a small gain (macro F1 +0.013), within the noise of a 480-image test set
+- Leaf Blast improved (F1 0.74 to 0.79); Hispa did not (F1 0.58)
+
+## Run 3: EfficientNet-B0 + rotation and colour augmentation
+- Same as Run 2 plus RandomRotation(20) and ColorJitter(0.2), 10 epochs
+- Best validation accuracy: 0.771
+
+| Metric (test) | Value |
+|---|---|
+| Accuracy | 0.773 |
+| Macro F1 | 0.752 |
+| Diseased called Healthy | 31 / 267 (11.6%) |
+
+Confusion matrix (rows = true, columns = predicted: Brown Spot, Healthy, Hispa, Leaf Blast):
+
+    [[ 64   7   1   3]
+     [ 12 171  19  11]
+     [  1  18  49  12]
+     [ 12   6   7  87]]
+
+Observations:
+- Macro F1 +0.021 and diseased-called-Healthy 44 to 31 versus Run 2, but validation accuracy did not improve (0.777 vs 0.771), so the gain is not confirmed
+- Hispa called Healthy dropped from 28 to 18; Healthy called Leaf Blast rose from 6 to 11 (trade-off)
+- Train/validation gap is smaller (0.77 vs 0.73), so more epochs may help
+
+## Summary (test set, 480 images)
+
+| Run | Model | Augmentation | Accuracy | Macro F1 | Diseased called Healthy |
+|---|---|---|---|---|---|
+| 1 | MobileNetV3 | flips | 0.746 | 0.718 | 45/267 |
+| 2 | EfficientNet-B0 | flips | 0.758 | 0.731 | 44/267 |
+| 3 | EfficientNet-B0 | flips + rotation + colour | 0.773 | 0.752 | 31/267 |
+
+Note: runs were compared on the test set here. From now on, compare on validation and use the test set only for the final result.

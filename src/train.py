@@ -15,13 +15,18 @@ from torchvision import models, transforms
 SPLITS_CSV = Path("data/splits.csv")
 MEAN, STD = [0.485, 0.456, 0.406], [0.229, 0.224, 0.225]
 SEED = 42
+PAPER_GREY = (235, 235, 235)  # fill colour for rotated corners (matches the paper background)
 
 
-def get_transforms(size: int, train: bool):
-    """Training: flips only (no random crop, so tiny lesions stay in view)."""
+def get_transforms(size: int, train: bool, aug: str = "flip"):
+    """aug='flip': flips only. aug='rotate': flips + rotation + colour jitter.
+    No random crop in either, so tiny lesions are never cropped out."""
     steps = [transforms.Resize((size, size))]
     if train:
         steps += [transforms.RandomHorizontalFlip(), transforms.RandomVerticalFlip()]
+        if aug == "rotate":
+            steps += [transforms.RandomRotation(20, fill=PAPER_GREY),
+                      transforms.ColorJitter(0.2, 0.2, 0.2)]
     steps += [transforms.ToTensor(), transforms.Normalize(MEAN, STD)]
     return transforms.Compose(steps)
 
@@ -78,6 +83,10 @@ def main():
     ap.add_argument("--size", type=int, default=224)
     ap.add_argument("--batch", type=int, default=32)
     ap.add_argument("--lr", type=float, default=1e-4)
+    ap.add_argument("--weight-decay", type=float, default=0.01)
+    ap.add_argument("--aug", choices=["flip", "rotate"], default="flip")
+    ap.add_argument("--label-smoothing", type=float, default=0.0)
+    ap.add_argument("--cosine", action="store_true", help="cosine learning-rate schedule")
     ap.add_argument("--out", default="runs/baseline")
     args = ap.parse_args()
 
@@ -91,7 +100,7 @@ def main():
     tr = df[df["split"] == "train"]
     va = df[df["split"] == "val"]
 
-    train_dl = DataLoader(LeafDataset(tr, get_transforms(args.size, True)),
+    train_dl = DataLoader(LeafDataset(tr, get_transforms(args.size, True, args.aug)),
                           batch_size=args.batch, shuffle=True, num_workers=2)
     val_dl = DataLoader(LeafDataset(va, get_transforms(args.size, False)),
                         batch_size=args.batch, num_workers=2)
@@ -99,8 +108,11 @@ def main():
     model = build_model(args.model, len(classes)).to(device)
     counts = np.bincount(tr["label"], minlength=len(classes))
     weights = torch.tensor(counts.sum() / (len(counts) * counts), dtype=torch.float).to(device)
-    loss_fn = nn.CrossEntropyLoss(weight=weights)
-    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr)
+    loss_fn = nn.CrossEntropyLoss(weight=weights, label_smoothing=args.label_smoothing)
+    optimizer = torch.optim.AdamW(model.parameters(), lr=args.lr,
+                                  weight_decay=args.weight_decay)
+    scheduler = (torch.optim.lr_scheduler.CosineAnnealingLR(optimizer, T_max=args.epochs)
+                 if args.cosine else None)
 
     out = Path(args.out)
     out.mkdir(parents=True, exist_ok=True)
@@ -109,6 +121,8 @@ def main():
     for epoch in range(1, args.epochs + 1):
         tl, ta = run_epoch(model, train_dl, loss_fn, device, optimizer)
         vl, vacc = run_epoch(model, val_dl, loss_fn, device)
+        if scheduler:
+            scheduler.step()
         print(f"epoch {epoch}: train acc {ta:.3f} | val loss {vl:.3f} | val acc {vacc:.3f}")
         log.append({"epoch": epoch, "train_acc": ta, "val_loss": vl, "val_acc": vacc})
         if vacc >= best_acc:
