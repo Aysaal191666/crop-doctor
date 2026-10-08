@@ -114,3 +114,29 @@ Findings:
 - The 70% coverage minimum was a product choice: (disease 0.4, healthy 0.7) answered 69% on validation with 8/267 missed (3.0%), and was excluded by 1 point
 - In 12 sampled mistakes, 6 were diseased called Healthy; 4 had confidence under 60% (would be sent to retake), 2 (64% and 73%) would pass the threshold
 - All thresholds were tuned on lab-style photos; field-photo behaviour is not yet measured (cross-source evaluation is next)
+
+
+## Cross-source evaluation (Run 3 model)
+- External data: RiceyLeafDisease (Mendeley Data, Bangladesh, 2023), original images only (1,701; the 5,188 augmented copies were excluded)
+- 944 photos in the 4 classes the model knows; 757 photos of 4 diseases it never saw
+- The photos are field photos (grass, mud, water, blur, several leaves); training photos were single leaves on plain paper
+
+| | Internal test | External (field photos) |
+|---|---|---|
+| Accuracy | 0.773 | 0.375 |
+| Macro F1 | 0.752 | 0.211 |
+
+Confusion matrix on external photos (rows = true, columns = predicted: Brown Spot, Healthy, Hispa, Leaf Blast):
+
+    [[ 52   0   0 215]
+     [ 49   3   7  98]
+     [ 77   1   1 136]
+     [  7   0   0 298]]
+
+Findings:
+- The model collapsed to "Leaf Blast": 747 of 944 photos (79%) were called Leaf Blast
+- 154 of 157 healthy leaves were called diseased. "Diseased called Healthy" is only 1/787 because the model almost never says Healthy (4 times in 944), so that safety metric is misleading here
+- The confidence thresholds did not help: 98% of in-scope photos and 100% of photos of unseen diseases were still answered
+- Likely cause (not proven): the model learned cues specific to the lab-style photos rather than the disease itself
+- Possible confounds not yet separated: photos were resized to a square (distorting non-square photos); external labels were not verified; some external photos are near-duplicates
+- Conclusion: the current model must not be presented as field-ready
