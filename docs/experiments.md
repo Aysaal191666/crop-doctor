@@ -140,3 +140,84 @@ Findings:
 - Likely cause (not proven): the model learned cues specific to the lab-style photos rather than the disease itself
 - Possible confounds not yet separated: photos were resized to a square (distorting non-square photos); external labels were not verified; some external photos are near-duplicates
 - Conclusion: the current model must not be presented as field-ready
+
+
+
+## Run A: lab-style + field photos (4 classes)
+- Same settings as Run 3 (EfficientNet-B0, 224 px, flips + rotation + colour jitter, 10 epochs, lr 1e-4, class-weighted loss), plus field photos in training
+- Train 3,069 (2,395 lab-style + 674 field), validation 614 (480 + 134); best validation accuracy 0.831
+- Field photos: RiceyLeafDisease originals, group-aware split (1,458 groups from 1,701 photos); only the four known classes used here
+
+| Metric | Run 3 | Run A |
+|---|---|---|
+| Lab-style test: accuracy | 0.773 | 0.806 |
+| Lab-style test: macro F1 | 0.752 | 0.773 |
+| Lab-style test: diseased called Healthy | 31/267 (11.6%) | 47/267 (17.6%) |
+| Field test (136 photos): accuracy | 0.375 (model never saw field photos) | 0.882 |
+| Field test: macro F1 | 0.211 | 0.884 |
+| Field test: diseased called Healthy | 1/787 | 1/112 |
+
+Confusion matrix, lab-style test (rows = true, columns = predicted: Brown Spot, Healthy, Hispa, Leaf Blast):
+
+    [[ 61   6   0   8]
+     [  2 197  10   4]
+     [  0  33  41   6]
+     [ 10   8   6  88]]
+
+Confusion matrix, field test:
+
+    [[33  0  2  3]
+     [ 2 20  2  0]
+     [ 0  1 29  1]
+     [ 5  0  0 38]]
+
+Findings:
+- Training with field photos removed the collapse seen in the cross-source test
+- Lab-style accuracy and macro F1 did not drop (the small rise is within noise); diseased-called-Healthy got worse (31 to 47), mostly Hispa called Healthy (33 of 80); cause not investigated
+- Hispa recall: 0.51 on lab-style photos vs 0.94 on field photos
+- The field test has only 136 photos (Healthy 24), so numbers are rough (about +/-5.5 points)
+- Likely optimistic: the field photos come from a few locations and photos of the same plant may sit on both sides of the split; not comparable with the 0.375 result because that model never saw field photos
+- Run A has no way to say "other disease"; 103 field test photos of unseen diseases were not evaluated
+- Confidence thresholds from the earlier ticket do not apply to this model and must be redone
+
+
+
+## Run B: lab-style + field photos + "Other" class
+- Same as Run A plus a fifth class, Other, made of the four field diseases the model had not been trained on (Bacterial Leaf Blight, Leaf scald, Narrow Brown Leaf Spot, Sheath Blight)
+- Train 3,615 (2,395 lab-style + 674 field known + 546 field Other), validation 722 (480 + 134 + 108); best validation accuracy 0.831
+- Test: lab-style 480 photos; field 239 photos (136 known classes + 103 Other)
+
+| Metric | Run A | Run B |
+|---|---|---|
+| Lab-style test: accuracy | 0.806 | 0.775 |
+| Lab-style test: macro F1 | 0.773 | 0.763 |
+| Lab-style test: diseased called Healthy | 47/267 (17.6%) | 25/267 (9.4%) |
+| Field test: accuracy | 0.882 (136 photos) | 0.870 (239 photos) |
+| Field test: diseased called Healthy | 1/112 | 0/215 |
+| Same 136 known-class field photos: correct | 120 | 115 |
+| Other: recall / precision | n/a | 0.903 / 0.930 |
+
+Confusion matrix, lab-style test (rows = true, columns = predicted: Brown Spot, Healthy, Hispa, Leaf Blast, Other):
+
+    [[ 64   4   1   6   0]
+     [  5 164  35   9   0]
+     [  1  17  57   5   0]
+     [ 13   4   8  87   0]
+     [  0   0   0   0   0]]
+
+Confusion matrix, field test:
+
+    [[34  0  0  1  3]
+     [ 2 22  0  0  0]
+     [ 1  0 28  0  2]
+     [10  0  0 31  2]
+     [ 5  0  1  4 93]]
+
+Findings:
+- 93 of 103 photos of the four unseen diseases were labelled Other; no diseased field photo was called Healthy (0/215; 95% upper bound about 1.4%)
+- On the same 136 known-class field photos, Run B got 5 fewer right than Run A (115 vs 120), within noise; Leaf Blast recall fell from 0.88 to 0.72 (10 called Brown Spot, only 43 photos)
+- On lab-style photos, Hispa called Healthy dropped from 33 to 17 while Healthy called Hispa rose from 10 to 35, so the Hispa/Healthy boundary moves between runs; these are single runs, so part of the change may be chance
+- Other was trained on these same four diseases, so it does not show that a new disease would be caught; all Other photos are field-style, so lab-style photos of unseen diseases are untested
+- Field result likely optimistic (small test set, one source, same-plant photos may span the split)
+- Run B is carried forward because it can say "other disease", a product decision, not because it scored higher
+- The confidence thresholds from the earlier ticket do not apply to this model and must be redone on validation data
