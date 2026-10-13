@@ -221,3 +221,30 @@ Findings:
 - Field result likely optimistic (small test set, one source, same-plant photos may span the split)
 - Run B is carried forward because it can say "other disease", a product decision, not because it scored higher
 - The confidence thresholds from the earlier ticket do not apply to this model and must be redone on validation data
+
+
+
+## Confidence thresholds for the mixed-source model (Run B)
+- Rule: the app answers only if confidence passes a threshold, with a higher bar for "Healthy"; otherwise it asks for a retake. "Other" counts as a disease.
+- Chosen on the combined validation set (480 lab-style + 242 field photos) with the same rule as before: at least 70% of photos answered, then fewest diseased-called-Healthy, then highest coverage. Each test set was checked once.
+- Chosen: disease >= 0.4, healthy >= 0.9. On validation: 75% answered (lab 63%, field 98%), diseased called Healthy 1/482.
+
+| | Without thresholds | With thresholds |
+|---|---|---|
+| Lab-style test: photos answered | 100% | 69% |
+| Lab-style test: accuracy on answered | 0.775 | 0.751 |
+| Lab-style test: diseased called Healthy | 25/267 (9.4%) | 3/267 (1.1%) |
+| Field test: photos answered | 100% | 98% |
+| Field test: accuracy on answered | 0.870 | 0.868 |
+| Field test: diseased called Healthy | 0/215 | 0/215 |
+
+Findings:
+- The diseased-called-Healthy count depends only on the Healthy threshold; the disease threshold trades coverage against accuracy (validation accuracy on answered rose from 0.84 to 0.92 while coverage fell)
+- The model is far more confident on field photos (97 to 99% answered at most settings) than on lab-style photos (63% answered at healthy >= 0.9), so the thresholds change little for field photos
+- On lab-style photos accuracy on answered photos fell (0.775 to 0.751): confidence did not separate right from wrong answers; the drop in diseased-called-Healthy comes from suppressing low-confidence "Healthy" answers
+- Not measured: how many truly healthy leaves are sent to "retake photo" because of the 0.9 bar
+- Small counts: 3/267 has a 95% range of about 0.2% to 3.3%; 0/215 means the true rate is probably below about 1.4%; the 5% target looks met but is not proven
+- The lab-style test answered 69%, just under the 70% minimum that held on validation (75%)
+- Alternative on validation: (disease 0.4, healthy 0.8) answers 83% and misses 3/482; not adopted because choosing after seeing test results would be peeking
+- Validation also selected the training epoch, so validation numbers are slightly optimistic
+- All results are on lab-style photos and one Bangladeshi field dataset; no photos from Andhra Pradesh yet
