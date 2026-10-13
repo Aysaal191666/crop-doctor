@@ -1,0 +1,27 @@
+{
+  "classes": [
+    "_BrownSpot",
+    "_Healthy",
+    "_Hispa",
+    "_LeafBlast",
+    "_Other"
+  ],
+  "size": 224,
+  "mean": [
+    0.485,
+    0.456,
+    0.406
+  ],
+  "std": [
+    0.229,
+    0.224,
+    0.225
+  ],
+  "preprocess": "RGB, resize to size x size (no aspect-ratio crop), scale to 0-1, normalise with mean/std, NCHW float32",
+  "thresholds": {
+    "disease": 0.4,
+    "healthy": 0.9
+  },
+  "onnx_input": "image",
+  "onnx_output": "logits (apply softmax)"
+}

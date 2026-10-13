@@ -247,4 +247,22 @@ Findings:
 - The lab-style test answered 69%, just under the 70% minimum that held on validation (75%)
 - Alternative on validation: (disease 0.4, healthy 0.8) answers 83% and misses 3/482; not adopted because choosing after seeing test results would be peeking
 - Validation also selected the training epoch, so validation numbers are slightly optimistic
-- All results are on lab-style photos and one Bangladeshi field dataset; no photos from Andhra Pradesh yet
+- All results are on lab-style photos and one Bangladeshi field dataset; no photos from Andhra Pradesh yet.
+
+
+
+## ONNX export (Run B model)
+- Exported with the legacy TorchScript exporter (opset 17, dynamic batch size); files: model.onnx, model_meta.json (classes, input size, normalisation, thresholds), export_report.json
+- Equivalence check against PyTorch on both test sets (719 photos): identical predictions on all of them; largest probability difference 0.000025 (lab-style) and 0.000007 (field)
+
+| | PyTorch | ONNX Runtime |
+|---|---|---|
+| File size | 16.3 MB | 16.0 MB |
+| Speed, 1 photo, median / 95th percentile (Colab server CPU) | 39.5 / 54.4 ms | 17.2 / 19.5 ms |
+
+Findings:
+- ONNX gives the same answers as PyTorch and is about 2.3x faster at the median; no quantisation was applied, so the file is not smaller
+- Speed was measured on a Colab server CPU, for the model step only (no image decoding, resizing or network); it is not a phone measurement
+- The confidence thresholds were not re-run on the ONNX model; probabilities differ by at most 0.000025
+- The API must repeat the training preprocessing exactly: RGB, resize straight to 224 x 224 (no crop), scale to 0-1, normalise with the ImageNet mean/std
+- TFLite export is not done (only needed for a native Android app)
