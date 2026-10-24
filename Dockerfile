@@ -8,6 +8,7 @@ RUN pip install --no-cache-dir -r requirements-api.txt
 
 COPY api/__init__.py api/main.py ./api/
 COPY models ./models
+COPY app ./app
 
 RUN useradd --create-home appuser && mkdir -p /app/data && chown appuser /app/data
 USER appuser

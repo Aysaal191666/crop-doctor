@@ -11,12 +11,14 @@ from pathlib import Path
 import numpy as np
 import onnxruntime as ort
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.responses import FileResponse
 from PIL import Image, ImageOps, UnidentifiedImageError
 from pydantic import BaseModel, Field
 
 MODEL_PATH = Path(os.environ.get("MODEL_PATH", "models/model.onnx"))
 META_PATH = Path(os.environ.get("META_PATH", "models/model_meta.json"))
 DB_PATH = Path(os.environ.get("DB_PATH", "data/app.db"))
+APP_DIR = Path(os.environ.get("APP_DIR", "app"))
 MAX_UPLOAD_BYTES = 10 * 1024 * 1024
 Image.MAX_IMAGE_PIXELS = 50_000_000  # reject decompression bombs
 
@@ -148,3 +150,9 @@ def feedback(fb: Feedback):
            "VALUES (?, ?, ?, ?, ?)",
            (fb.prediction_id, time.time(), int(fb.correct), fb.true_label, fb.comment))
     return {"saved": True}
+    
+
+@app.get("/", include_in_schema=False)
+def index():
+    return FileResponse(APP_DIR / "index.html")
+    
