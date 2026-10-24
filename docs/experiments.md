@@ -266,3 +266,24 @@ Findings:
 - The confidence thresholds were not re-run on the ONNX model; probabilities differ by at most 0.000025
 - The API must repeat the training preprocessing exactly: RGB, resize straight to 224 x 224 (no crop), scale to 0-1, normalise with the ImageNet mean/std
 - TFLite export is not done (only needed for a native Android app)
+
+
+
+
+## API serving check (Run B model, FastAPI + ONNX Runtime)
+- The API (`api/main.py`) preprocesses the photo, runs the ONNX model, and applies the thresholds from `models/model_meta.json` (disease 0.4, healthy 0.9). Answers are "result", "other" or "retake".
+- `api/eval_serving.py` runs the real API code over the 480 lab-style test photos and compares with the Colab run of the same model
+
+| Lab-style test (480 photos) | Colab (PyTorch) | API pipeline |
+|---|---|---|
+| Accuracy, no thresholds | 0.775 | 0.775 |
+| Diseased called Healthy, no thresholds | 25/267 | 25/267 |
+| With thresholds: photos answered | 69% | 69% |
+| With thresholds: accuracy on answered | 0.751 | 0.751 |
+| With thresholds: diseased called Healthy | 3/267 | 3/267 |
+
+- The confusion matrix is identical to the Colab run, so the serving pipeline reproduces the trained model on square lab-style photos
+- Not yet verified: non-square photos (field photos, phone photos). The test `test_preprocess_matches_training` covers this but needs PyTorch and was skipped in Codespaces
+- The API rotates sideways phone photos upright using the EXIF tag; training did not do this
+- Two manual checks through the `/docs` page: a healthy lab-style leaf was answered "Leaf Blast" (confidence 0.54; Healthy 0.23), an ordinary error of the kind seen in the test set (about 4% of healthy test photos are called Leaf Blast); a photo of a wooden table was answered "Other disease" (confidence 0.53; Brown Spot 0.30). The model never saw non-leaf photos, so this answer is luck, not a capability. One photo each proves nothing about rates
+- Open limits: no "not a leaf" check; no login or rate limit; library versions not yet pinned; the database file may not survive a restart on a hosting service
