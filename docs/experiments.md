@@ -283,7 +283,15 @@ Findings:
 | With thresholds: diseased called Healthy | 3/267 | 3/267 |
 
 - The confusion matrix is identical to the Colab run, so the serving pipeline reproduces the trained model on square lab-style photos
-- Not yet verified: non-square photos (field photos, phone photos). The test `test_preprocess_matches_training` covers this but needs PyTorch and was skipped in Codespaces
+- Non-square photo preprocessing was verified afterwards (see "Preprocessing parity check" below)
 - The API rotates sideways phone photos upright using the EXIF tag; training did not do this
 - Two manual checks through the `/docs` page: a healthy lab-style leaf was answered "Leaf Blast" (confidence 0.54; Healthy 0.23), an ordinary error of the kind seen in the test set (about 4% of healthy test photos are called Leaf Blast); a photo of a wooden table was answered "Other disease" (confidence 0.53; Brown Spot 0.30). The model never saw non-leaf photos, so this answer is luck, not a capability. One photo each proves nothing about rates
 - Open limits: no "not a leaf" check; no login or rate limit; library versions not yet pinned; the database file may not survive a restart on a hosting service
+
+
+
+## Preprocessing parity check (API vs training)
+- `tests/test_api.py::test_preprocess_matches_training` sends a random 300 x 200 (non-square) RGB image through the API's preprocessing and through the training transform (`get_transforms(size, False)`); largest difference below 1e-4. Result: passed (PyTorch 2.14.1 CPU, torchvision 0.29.1, Python 3.14.2)
+- Together with the 480-photo serving check, the API reproduces the trained model's behaviour on square lab-style photos, and its preprocessing matches training for non-square input
+- Not covered: the EXIF auto-rotation the API adds (training did not apply it), real JPEG field photos through the whole pipeline, and photos that are not leaves
+- The test is skipped automatically where PyTorch is not installed (for example in CI), so it must be rerun locally whenever the preprocessing changes

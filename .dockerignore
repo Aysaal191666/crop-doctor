@@ -1,0 +1,11 @@
+.git
+.github
+data
+runs
+notebooks
+docs
+tests
+src
+__pycache__
+*.pyc
+.pytest_cache
