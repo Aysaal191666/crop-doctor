@@ -77,6 +77,11 @@ const $ = (id) => document.getElementById(id);
 const camera = $("camera"), gallery = $("gallery");
 $("takeBtn").onclick = () => camera.click();
 $("pickBtn").onclick = () => gallery.click();
+if (!window.matchMedia("(pointer: coarse)").matches) {
+  $("takeBtn").hidden = true;
+  $("pickBtn").textContent = "Choose a photo";
+  $("pickBtn").classList.replace("secondary", "primary");
+}
 camera.onchange = () => handle(camera);
 gallery.onchange = () => handle(gallery);
 
