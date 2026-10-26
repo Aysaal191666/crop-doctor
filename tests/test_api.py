@@ -142,3 +142,11 @@ def test_feedback_rejects_unknown_label(client):
     r = client.post("/feedback", json={"prediction_id": "nope", "correct": False,
                                        "true_label": "Nonsense"})
     assert r.status_code == 422
+
+    
+
+def test_home_page_is_served(client):
+    r = client.get("/")
+    assert r.status_code == 200
+    assert "text/html" in r.headers["content-type"]
+    assert "Crop Doctor" in r.text

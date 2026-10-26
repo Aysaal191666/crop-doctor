@@ -1,0 +1,148 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Crop Doctor</title>
+<style>
+  :root {
+    --bg:#f4f8f3; --card:#ffffff; --text:#1d2b1f; --muted:#5b6b5e; --line:#d8e2d6;
+    --green:#2e7d32; --amber:#b26a00; --red:#b3261e; --btn-text:#ffffff;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg:#101a12; --card:#18241b; --text:#e8f0e9; --muted:#9fb1a2; --line:#2a3a2d;
+      --green:#66bb6a; --amber:#ffb74d; --red:#ef9a9a; --btn-text:#0b1f0d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+         background:var(--bg); color:var(--text); }
+  main { max-width:520px; margin:0 auto; padding:20px 16px 40px; }
+  h1 { font-size:1.6rem; margin:8px 0 4px; }
+  h2 { margin:10px 0 6px; }
+  .sub { color:var(--muted); margin:0 0 20px; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:14px;
+          padding:16px; margin-bottom:16px; }
+  .btn { display:block; width:100%; padding:16px; font-size:1.1rem; border-radius:12px;
+         border:0; cursor:pointer; margin-bottom:10px; }
+  .primary { background:var(--green); color:var(--btn-text); }
+  .secondary { background:transparent; color:var(--text); border:1px solid var(--line); }
+  .tips { margin:0; padding-left:20px; color:var(--muted); line-height:1.6; }
+  #preview { width:100%; border-radius:10px; margin-bottom:12px; display:none; }
+  .badge { display:inline-block; padding:4px 10px; border-radius:999px; font-weight:600;
+           font-size:.85rem; color:var(--btn-text); }
+  .bar { height:10px; background:var(--line); border-radius:6px; overflow:hidden; margin:8px 0; }
+  .bar > div { height:100%; }
+  .small { font-size:.85rem; color:var(--muted); }
+  [hidden] { display:none !important; }
+</style>
+</head>
+<body>
+<main>
+  <h1>Crop Doctor</h1>
+  <p class="sub">Check a rice leaf for disease</p>
+
+  <div class="card">
+    <ul class="tips">
+      <li>Photograph one leaf in daylight</li>
+      <li>Fill the frame with the leaf</li>
+      <li>Hold the phone steady to avoid blur</li>
+    </ul>
+  </div>
+
+  <input id="camera" type="file" accept="image/*" capture="environment" hidden>
+  <input id="gallery" type="file" accept="image/*" hidden>
+  <button class="btn primary" id="takeBtn">Take photo</button>
+  <button class="btn secondary" id="pickBtn">Choose from gallery</button>
+
+  <div class="card" id="result" hidden>
+    <img id="preview" alt="Your photo">
+    <div id="loading" hidden>Checking the leaf...</div>
+    <div id="answer" hidden>
+      <span class="badge" id="badge"></span>
+      <h2 id="title"></h2>
+      <div class="bar" id="barWrap"><div id="bar"></div></div>
+      <div class="small" id="conf"></div>
+      <p id="message"></p>
+    </div>
+    <div id="error" hidden></div>
+  </div>
+
+  <p class="small">This is a decision aid, not a diagnosis. For serious cases, contact your local agriculture officer.</p>
+</main>
+
+<script>
+const $ = (id) => document.getElementById(id);
+const camera = $("camera"), gallery = $("gallery");
+$("takeBtn").onclick = () => camera.click();
+$("pickBtn").onclick = () => gallery.click();
+if (!window.matchMedia("(pointer: coarse)").matches) {
+  $("takeBtn").hidden = true;
+  $("pickBtn").textContent = "Choose a photo";
+  $("pickBtn").classList.replace("secondary", "primary");
+}
+camera.onchange = () => handle(camera);
+gallery.onchange = () => handle(gallery);
+
+function show(id, on) { $(id).hidden = !on; }
+
+async function handle(input) {
+  const file = input.files[0];
+  input.value = "";
+  if (!file) return;
+
+  show("result", true);
+  show("answer", false);
+  show("error", false);
+  show("loading", true);
+  const preview = $("preview");
+  preview.src = URL.createObjectURL(file);
+  preview.style.display = "block";
+  $("result").scrollIntoView({ behavior: "smooth" });
+
+  const form = new FormData();
+  form.append("file", file);
+  try {
+    const res = await fetch("/predict", { method: "POST", body: form });
+    show("loading", false);
+    if (!res.ok) {
+      const body = await res.json().catch(() => ({}));
+      throw new Error(typeof body.detail === "string" ? body.detail : "Something went wrong. Please try again.");
+    }
+    render(await res.json());
+  } catch (err) {
+    show("loading", false);
+    const offline = err instanceof TypeError;
+    $("error").textContent = offline
+      ? "Could not reach the server. Check your connection and try again."
+      : err.message;
+    show("error", true);
+  }
+}
+
+function render(r) {
+  let kind, label, title;
+  if (r.status === "retake") { kind = "amber"; label = "Not sure"; title = "Please retake the photo"; }
+  else if (r.status === "other") { kind = "amber"; label = "Not recognised"; title = "Other problem"; }
+  else if (r.label === "Healthy") { kind = "green"; label = "Healthy"; title = "Looks healthy"; }
+  else { kind = "red"; label = "Possible disease"; title = r.display_name; }
+
+  const badge = $("badge");
+  badge.textContent = label;
+  badge.style.background = `var(--${kind})`;
+  $("title").textContent = title;
+  $("message").textContent = r.message;
+
+  const showBar = r.status !== "retake";
+  const pct = Math.round(r.confidence * 100);
+  $("barWrap").hidden = !showBar;
+  $("conf").hidden = !showBar;
+  $("bar").style.width = pct + "%";
+  $("bar").style.background = `var(--${kind})`;
+  $("conf").textContent = `Model confidence: ${pct}%`;
+  show("answer", true);
+}
+</script>
+</body>
+</html>
