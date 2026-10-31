@@ -16,9 +16,12 @@
     }
   }
   * { box-sizing: border-box; }
-  body { margin:0; font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-         background:var(--bg); color:var(--text); }
+  body { margin:0; background:var(--bg); color:var(--text);
+         font-family: system-ui, -apple-system, "Segoe UI", "Noto Sans Telugu", "Nirmala UI",
+                      "Telugu Sangam MN", Roboto, sans-serif; }
+  html[lang="te"] body { line-height:1.75; }
   main { max-width:520px; margin:0 auto; padding:20px 16px 40px; }
+  .topbar { display:flex; align-items:center; justify-content:space-between; gap:12px; }
   h1 { font-size:1.6rem; margin:8px 0 4px; }
   h2 { margin:10px 0 6px; }
   .sub { color:var(--muted); margin:0 0 20px; }
@@ -28,6 +31,8 @@
          border:0; cursor:pointer; margin-bottom:10px; }
   .primary { background:var(--green); color:var(--btn-text); }
   .secondary { background:transparent; color:var(--text); border:1px solid var(--line); }
+  .lang { border:1px solid var(--line); background:var(--card); color:var(--text);
+          border-radius:999px; padding:8px 14px; font-size:.95rem; cursor:pointer; }
   .tips { margin:0; padding-left:20px; color:var(--muted); line-height:1.6; }
   #preview { width:100%; border-radius:10px; margin-bottom:12px; display:none; }
   .badge { display:inline-block; padding:4px 10px; border-radius:999px; font-weight:600;
@@ -35,30 +40,28 @@
   .bar { height:10px; background:var(--line); border-radius:6px; overflow:hidden; margin:8px 0; }
   .bar > div { height:100%; }
   .small { font-size:.85rem; color:var(--muted); }
+  #error { color:var(--red); }
   [hidden] { display:none !important; }
 </style>
 </head>
 <body>
 <main>
-  <h1>Crop Doctor</h1>
-  <p class="sub">Check a rice leaf for disease</p>
-
-  <div class="card">
-    <ul class="tips">
-      <li>Photograph one leaf in daylight</li>
-      <li>Fill the frame with the leaf</li>
-      <li>Hold the phone steady to avoid blur</li>
-    </ul>
+  <div class="topbar">
+    <h1 id="appName">Crop Doctor</h1>
+    <button class="lang" id="langBtn" type="button">తెలుగు</button>
   </div>
+  <p class="sub" id="subtitle"></p>
+
+  <div class="card"><ul class="tips" id="tips"></ul></div>
 
   <input id="camera" type="file" accept="image/*" capture="environment" hidden>
   <input id="gallery" type="file" accept="image/*" hidden>
-  <button class="btn primary" id="takeBtn">Take photo</button>
-  <button class="btn secondary" id="pickBtn">Choose from gallery</button>
+  <button class="btn primary" id="takeBtn" type="button"></button>
+  <button class="btn secondary" id="pickBtn" type="button"></button>
 
   <div class="card" id="result" hidden>
-    <img id="preview" alt="Your photo">
-    <div id="loading" hidden>Checking the leaf...</div>
+    <img id="preview" alt="">
+    <div id="loading" hidden></div>
     <div id="answer" hidden>
       <span class="badge" id="badge"></span>
       <h2 id="title"></h2>
@@ -69,34 +72,176 @@
     <div id="error" hidden></div>
   </div>
 
-  <p class="small">This is a decision aid, not a diagnosis. For serious cases, contact your local agriculture officer.</p>
+  <p class="small" id="demoNote" hidden>Demo: this is not a real result.</p>
+  <p class="small" id="disclaimer"></p>
 </main>
 
 <script>
+// ===== ALL WORDING LIVES HERE. Edit the sentences below (English and Telugu). =====
+const TEXT = {
+  en: {
+    appName: "Crop Doctor",
+    subtitle: "Check a rice leaf for disease",
+    tips: ["Photograph one leaf in daylight", "Fill the frame with the leaf",
+           "Hold the phone steady to avoid blur"],
+    takePhoto: "Take photo",
+    pickGallery: "Choose from gallery",
+    choosePhoto: "Choose a photo",
+    loading: "Checking the leaf...",
+    photoAlt: "Your photo",
+    badgeRetake: "Not sure",
+    badgeOther: "Not recognised",
+    badgeHealthy: "Healthy",
+    badgeProblem: "Possible problem",
+    titleRetake: "Please retake the photo",
+    titleOther: "Other problem",
+    titleHealthy: "Looks healthy",
+    msgRetake: "Not sure. Please retake the photo in daylight with the leaf filling the frame.",
+    msgOther: "This does not look like one of the conditions this app knows. Please ask an agriculture expert to check the plant.",
+    msgHealthy: "The leaf looks healthy. If you still see problems, ask an agriculture officer.",
+    msgProblem: "This may be {name}. Please confirm with an agriculture officer before treating.",
+    confidence: "Model confidence: {pct}%",
+    disclaimer: "This is a decision aid, not a diagnosis. For serious cases, contact your local agriculture officer.",
+    errNetwork: "Could not reach the server. Check your connection and try again.",
+    errTooLarge: "This photo is too large (limit 10 MB). Please choose a smaller one.",
+    errUnreadable: "Could not read this file as a photo.",
+    errGeneric: "Something went wrong. Please try again.",
+    otherLang: "తెలుగు",
+    names: { BrownSpot: "Brown Spot", Hispa: "Hispa", LeafBlast: "Leaf Blast" }
+  },
+  te: {
+    appName: "పంట డాక్టర్",
+    subtitle: "వరి ఆకును పరీక్షించి వ్యాధిని తెలుసుకోండి",
+    tips: ["పగటి వెలుగులో ఒక్క ఆకును ఫోటో తీయండి",
+           "ఫోటో నిండా ఆకు కనిపించేలా తీయండి",
+           "ఫోటో మసకగా రాకుండా ఫోన్‌ను కదలకుండా పట్టుకోండి"],
+    takePhoto: "ఫోటో తీయండి",
+    pickGallery: "గ్యాలరీ నుండి ఎంచుకోండి",
+    choosePhoto: "ఫోటోను ఎంచుకోండి",
+    loading: "ఆకును పరిశీలిస్తున్నాం...",
+    photoAlt: "మీ ఫోటో",
+    badgeRetake: "ఖచ్చితంగా తెలియదు",
+    badgeOther: "గుర్తించలేకపోయాం",
+    badgeHealthy: "ఆరోగ్యంగా ఉంది",
+    badgeProblem: "సమస్య ఉండవచ్చు",
+    titleRetake: "దయచేసి మళ్లీ ఫోటో తీయండి",
+    titleOther: "ఇతర సమస్య",
+    titleHealthy: "ఆకు ఆరోగ్యంగా కనిపిస్తోంది",
+    msgRetake: "ఖచ్చితంగా చెప్పలేకపోతున్నాం. పగటి వెలుగులో, ఆకు ఫోటో నిండా కనిపించేలా మళ్లీ తీయండి.",
+    msgOther: "ఇది ఈ యాప్‌కు తెలిసిన సమస్యల్లో ఒకటిగా కనిపించడం లేదు. దయచేసి వ్యవసాయ నిపుణులకు చూపించండి.",
+    msgHealthy: "ఆకు ఆరోగ్యంగా కనిపిస్తోంది. ఇంకా సమస్య ఉందనిపిస్తే వ్యవసాయ అధికారిని అడగండి.",
+    msgProblem: "ఇది {name} అయి ఉండవచ్చు. మందులు వాడే ముందు వ్యవసాయ అధికారిని అడిగి నిర్ధారించుకోండి.",
+    confidence: "యాప్ నమ్మకం: {pct}%",
+    disclaimer: "ఇది కేవలం సహాయక సూచన, ఖచ్చితమైన నిర్ధారణ కాదు. తీవ్రమైన సమస్యలకు మీ స్థానిక వ్యవసాయ అధికారిని సంప్రదించండి.",
+    errNetwork: "సర్వర్‌ను చేరుకోలేకపోయాం. ఇంటర్నెట్ కనెక్షన్ చూసి మళ్లీ ప్రయత్నించండి.",
+    errTooLarge: "ఈ ఫోటో చాలా పెద్దగా ఉంది (గరిష్టంగా 10 MB). చిన్న ఫోటోను ఎంచుకోండి.",
+    errUnreadable: "ఈ ఫైల్‌ను ఫోటోగా చదవలేకపోయాం.",
+    errGeneric: "ఏదో తప్పు జరిగింది. దయచేసి మళ్లీ ప్రయత్నించండి.",
+    otherLang: "English",
+    names: { BrownSpot: "గోధుమ రంగు మచ్చ తెగులు", Hispa: "హిస్పా పురుగు", LeafBlast: "అగ్గి తెగులు" }
+  }
+};
+// ===== END OF WORDING =====
+
 const $ = (id) => document.getElementById(id);
+const touch = window.matchMedia("(pointer: coarse)").matches;
+let lang = "en";
+let state = { kind: null, data: null };   // what is on screen: a result or an error
+
+const t = (key) => TEXT[lang][key];
+const fill = (s, vars) => s.replace(/\{(\w+)\}/g, (_, k) => vars[k]);
+const show = (id, on) => { $(id).hidden = !on; };
+
+function initialLang() {
+  try {
+    const saved = localStorage.getItem("lang");
+    if (saved === "en" || saved === "te") return saved;
+  } catch (e) {}
+  return (navigator.language || "").toLowerCase().startsWith("te") ? "te" : "en";
+}
+
+function applyLang() {
+  document.documentElement.lang = lang;
+  document.title = t("appName");
+  $("appName").textContent = t("appName");
+  $("subtitle").textContent = t("subtitle");
+  $("tips").innerHTML = "";
+  t("tips").forEach((s) => {
+    const li = document.createElement("li");
+    li.textContent = s;
+    $("tips").appendChild(li);
+  });
+  $("takeBtn").textContent = t("takePhoto");
+  $("pickBtn").textContent = touch ? t("pickGallery") : t("choosePhoto");
+  $("loading").textContent = t("loading");
+  $("preview").alt = t("photoAlt");
+  $("disclaimer").textContent = t("disclaimer");
+  $("langBtn").textContent = t("otherLang");
+  $("langBtn").setAttribute("lang", lang === "en" ? "te" : "en");
+  redraw();
+}
+
+function redraw() {
+  show("answer", false);
+  show("error", false);
+  if (state.kind === "result") renderResult(state.data);
+  else if (state.kind === "error") {
+    $("error").textContent = t(state.data);
+    show("error", true);
+  }
+}
+
+function renderResult(r) {
+  let kind, badge, title, msg;
+  if (r.status === "retake") {
+    kind = "amber"; badge = t("badgeRetake"); title = t("titleRetake"); msg = t("msgRetake");
+  } else if (r.status === "other") {
+    kind = "amber"; badge = t("badgeOther"); title = t("titleOther"); msg = t("msgOther");
+  } else if (r.label === "Healthy") {
+    kind = "green"; badge = t("badgeHealthy"); title = t("titleHealthy"); msg = t("msgHealthy");
+  } else {
+    const name = t("names")[r.label] || r.display_name;
+    kind = "red"; badge = t("badgeProblem"); title = name;
+    msg = fill(t("msgProblem"), { name });
+  }
+  const b = $("badge");
+  b.textContent = badge;
+  b.style.background = `var(--${kind})`;
+  $("title").textContent = title;
+  $("message").textContent = msg;
+
+  const showBar = r.status !== "retake";
+  const pct = Math.round(r.confidence * 100);
+  $("barWrap").hidden = !showBar;
+  $("conf").hidden = !showBar;
+  $("bar").style.width = pct + "%";
+  $("bar").style.background = `var(--${kind})`;
+  $("conf").textContent = fill(t("confidence"), { pct });
+  show("answer", true);
+}
+
 const camera = $("camera"), gallery = $("gallery");
 $("takeBtn").onclick = () => camera.click();
 $("pickBtn").onclick = () => gallery.click();
-if (!window.matchMedia("(pointer: coarse)").matches) {
-  $("takeBtn").hidden = true;
-  $("pickBtn").textContent = "Choose a photo";
-  $("pickBtn").classList.replace("secondary", "primary");
-}
 camera.onchange = () => handle(camera);
 gallery.onchange = () => handle(gallery);
-
-function show(id, on) { $(id).hidden = !on; }
+if (!touch) {
+  $("takeBtn").hidden = true;
+  $("pickBtn").classList.replace("secondary", "primary");
+}
 
 async function handle(input) {
   const file = input.files[0];
   input.value = "";
   if (!file) return;
 
+  state = { kind: null, data: null };
   show("result", true);
   show("answer", false);
   show("error", false);
   show("loading", true);
   const preview = $("preview");
+  if (preview.src.startsWith("blob:")) URL.revokeObjectURL(preview.src);
   preview.src = URL.createObjectURL(file);
   preview.style.display = "block";
   $("result").scrollIntoView({ behavior: "smooth" });
@@ -107,42 +252,49 @@ async function handle(input) {
     const res = await fetch("/predict", { method: "POST", body: form });
     show("loading", false);
     if (!res.ok) {
-      const body = await res.json().catch(() => ({}));
-      throw new Error(typeof body.detail === "string" ? body.detail : "Something went wrong. Please try again.");
+      const key = res.status === 413 ? "errTooLarge" : res.status === 400 ? "errUnreadable" : "errGeneric";
+      state = { kind: "error", data: key };
+    } else {
+      state = { kind: "result", data: await res.json() };
     }
-    render(await res.json());
   } catch (err) {
     show("loading", false);
-    const offline = err instanceof TypeError;
-    $("error").textContent = offline
-      ? "Could not reach the server. Check your connection and try again."
-      : err.message;
-    show("error", true);
+    state = { kind: "error", data: err instanceof TypeError ? "errNetwork" : "errGeneric" };
   }
+  redraw();
 }
 
-function render(r) {
-  let kind, label, title;
-  if (r.status === "retake") { kind = "amber"; label = "Not sure"; title = "Please retake the photo"; }
-  else if (r.status === "other") { kind = "amber"; label = "Not recognised"; title = "Other problem"; }
-  else if (r.label === "Healthy") { kind = "green"; label = "Healthy"; title = "Looks healthy"; }
-  else { kind = "red"; label = "Possible disease"; title = r.display_name; }
-
-  const badge = $("badge");
-  badge.textContent = label;
-  badge.style.background = `var(--${kind})`;
-  $("title").textContent = title;
-  $("message").textContent = r.message;
-
-  const showBar = r.status !== "retake";
-  const pct = Math.round(r.confidence * 100);
-  $("barWrap").hidden = !showBar;
-  $("conf").hidden = !showBar;
-  $("bar").style.width = pct + "%";
-  $("bar").style.background = `var(--${kind})`;
-  $("conf").textContent = `Model confidence: ${pct}%`;
-  show("answer", true);
+// Review mode: open the page with ?demo=retake (see the list in the instructions)
+// to look at each screen without a photo. Results shown this way are made up.
+function runDemo() {
+  const demo = (new URLSearchParams(location.search).get("demo") || "").toLowerCase();
+  if (!demo) return;
+  const results = {
+    retake:    { status: "retake", label: null, confidence: 0.5 },
+    other:     { status: "other", label: "Other", confidence: 0.7 },
+    healthy:   { status: "result", label: "Healthy", confidence: 0.95 },
+    brownspot: { status: "result", label: "BrownSpot", confidence: 0.8 },
+    hispa:     { status: "result", label: "Hispa", confidence: 0.8 },
+    leafblast: { status: "result", label: "LeafBlast", confidence: 0.8 }
+  };
+  const errors = { network: "errNetwork", toolarge: "errTooLarge",
+                   unreadable: "errUnreadable", generic: "errGeneric" };
+  if (results[demo]) state = { kind: "result", data: results[demo] };
+  else if (errors[demo]) state = { kind: "error", data: errors[demo] };
+  else return;
+  show("result", true);
+  show("demoNote", true);
+  redraw();
 }
+
+lang = initialLang();
+$("langBtn").onclick = () => {
+  lang = lang === "en" ? "te" : "en";
+  try { localStorage.setItem("lang", lang); } catch (e) {}
+  applyLang();
+};
+applyLang();
+runDemo();
 </script>
 </body>
 </html>
